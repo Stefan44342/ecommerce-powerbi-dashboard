@@ -1,0 +1,197 @@
+create database ECommerceDB
+use ECommerceDB
+
+
+
+
+ALTER TABLE [dbo].[Online_retail_cleaned]
+ALTER COLUMN INVOICENO NVARCHAR(50) NOT NULL;
+-- 1. Transformăm InvoiceNo în NVarchar (pentru că poate conține text/litere)
+ALTER TABLE Online_retail_cleaned 
+ALTER COLUMN InvoiceNo NVARCHAR(50) NOT NULL;
+
+-- 2. Transformăm CustomerID în INT (sau lăsăm NVARCHAR dacă are valori text, dar de obicei e numeric întreg)
+ALTER TABLE Online_retail_cleaned 
+ALTER COLUMN CustomerID INT NOT NULL;
+
+-- 3. Transformăm Quantity în INT (cantitățile sunt mereu numere întregi)
+ALTER TABLE Online_retail_cleaned 
+ALTER COLUMN Quantity INT NOT NULL;
+
+-- 4. Transformăm UnitPrice și TotalRevenue în DECIMAL (pentru bani, tipul float dă erori de rotunjire)
+ALTER TABLE Online_retail_cleaned 
+ALTER COLUMN UnitPrice DECIMAL(10, 2) NOT NULL;
+
+ALTER TABLE Online_retail_cleaned 
+ALTER COLUMN TotalRevenue DECIMAL(10, 2) NOT NULL;
+
+-- 5. Transformăm Hour în INT
+ALTER TABLE Online_retail_cleaned 
+ALTER COLUMN Hour INT NOT NULL;
+
+UPDATE Online_retail_cleaned
+SET TotalRevenue = Quantity * UnitPrice;
+
+SELECT
+COUNT(DISTINCT INVOICENO) AS TOTAL_COMENZI,
+COUNT(DISTINCT CUSTOMERID) AS TOTAL_CLIENTI,
+SUM(TOTALREVENUE) AS VENIT_TOTAL FROM [dbo].[Online_retail_cleaned]
+
+SELECT * FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'Online_retail_cleaned'
+--AOV
+SELECT 
+COUNT(DISTINCT INVOICENO) AS TOTAL_COMENZI,
+SUM(TOTALREVENUE) AS VENIT_TOTAL,
+SUM(TOTALREVENUE) / COUNT(DISTINCT INVOICENO) AS AOV FROM [dbo].[Online_retail_cleaned]
+
+--
+SELECT
+YEARMONTH,
+SUM(TOTALREVENUE) AS VENITURI_TOTALE,
+COUNT(DISTINCT INVOICENO) AS NUMAR_COMENZI
+FROM [dbo].[Online_retail_cleaned] 
+GROUP BY YearMonth
+ORDER BY YearMonth
+
+--
+SELECT TOP 10
+CUSTOMERID,
+SUM(TOTALREVENUE) AS CUMPARATURI_TOTALE
+FROM [dbo].[Online_retail_cleaned]
+GROUP BY CustomerID
+ORDER BY CUMPARATURI_TOTALE DESC
+--
+SELECT 
+COUNTRY,
+COUNT(DISTINCT INVOICENO) AS NUMAR_COMENZI,
+COUNT(DISTINCT CUSTOMERID) AS NUMAR_CLIENTI,
+SUM (TOTALREVENUE) AS BANI_GENERATI
+FROM [dbo].[Online_retail_cleaned]
+GROUP BY COUNTRY
+
+--
+
+SELECT 
+STOCKCODE,
+SUM (TOTALREVENUE) AS BANI_GENERATI
+FROM [dbo].[Online_retail_cleaned]
+GROUP BY STOCKCODE
+ORDER BY BANI_GENERATI DESC
+
+--
+SELECT * FROM [dbo].[Online_retail_cleaned] 
+
+SELECT
+DAYOFTHEWEEK,
+HOUR,
+SUM(TOTALREVENUE) AS BANI_GENERATI
+FROM [dbo].[Online_retail_cleaned]
+GROUP BY HOUR, DAYOFTHEWEEK
+ORDER BY BANI_GENERATI DESC
+--
+
+-- Pasul 1: Creăm un CTE care numără câte comenzi a făcut fiecare client în parte
+WITH ClientComenzi AS (
+    SELECT 
+        CustomerID,
+        COUNT(DISTINCT InvoiceNo) AS Numar_Comenzi_Total
+    FROM Online_retail_cleaned
+    GROUP BY CustomerID
+)
+-- Pasul 2: Clasificăm clienții în funcție de numărul de comenzi și îi numărăm
+SELECT 
+    CASE 
+        WHEN Numar_Comenzi_Total = 1 THEN 'Client cu o singură comandă (One-Time)'
+        ELSE 'Client fidel (Repeat Buyer)'
+    END AS Tip_Client,
+    COUNT(CustomerID) AS Numar_De_Clienti
+FROM ClientComenzi
+GROUP BY 
+    CASE 
+        WHEN Numar_Comenzi_Total = 1 THEN 'Client cu o singură comandă (One-Time)'
+        ELSE 'Client fidel (Repeat Buyer)'
+    END;
+
+    --
+    WITH COMENZICRONOLOGICE AS(
+    SELECT
+    CUSTOMERID,
+    INVOICENO,
+    INVOICEDATE,
+    ROW_NUMBER() OVER (PARTITION BY CUSTOMERID ORDER BY INVOICEDATE ASC) AS NUMAR_ORDINE_COMANDA
+    FROM [dbo].[Online_retail_cleaned])
+
+    SELECT TOP 20
+    C1.CustomerID,
+    c1.InvoiceDate AS Prima_Comanda,
+    c2.InvoiceDate AS A_Doua_Comanda,
+    DATEDIFF(day, c1.InvoiceDate, c2.InvoiceDate) AS Zile_Intre_Comenzi
+    FROM COMENZICRONOLOGICE C1 JOIN COMENZICRONOLOGICE C2 ON C1.CUSTOMERID=C2.CUSTOMERID
+    WHERE C1.NUMAR_ORDINE_COMANDA=1 AND C2.NUMAR_ORDINE_COMANDA=2
+    ORDER BY ZILE_INTRE_COMENZI
+
+
+CREATE VIEW VW_VANZARI_PE_TARI AS 
+WITH COMENZI_PER_TARA AS (
+    SELECT 
+        COUNTRY,
+        SUM(TOTALREVENUE) AS VENIT_TARA
+    FROM [dbo].[Online_retail_cleaned]
+    GROUP BY COUNTRY
+),
+COMENZI_GLOBALE AS (
+    SELECT 
+        SUM(TOTALREVENUE) AS VENIT_GLOBALE
+    FROM [dbo].[Online_retail_cleaned]
+)
+SELECT 
+    COUNTRY,
+    A.VENIT_TARA,
+    B.VENIT_GLOBALE,
+    ROUND((A.VENIT_TARA / B.VENIT_GLOBALE) * 100, 2) AS PROCENTUAL
+FROM COMENZI_PER_TARA A 
+CROSS JOIN COMENZI_GLOBALE B
+
+
+
+CREATE VIEW vw_TrendLunar AS
+SELECT 
+    YearMonth,
+    COUNT(DISTINCT InvoiceNo) AS Numar_Comenzi,
+    SUM(TotalRevenue) AS Venit_Lunar,
+    ROUND(AVG(TotalRevenue), 2) AS Valoare_Medie_Tranzactie
+FROM Online_retail_cleaned
+GROUP BY YearMonth;
+
+
+CREATE VIEW vw_TopProduse AS
+SELECT 
+    StockCode,
+    Description,
+    SUM(Quantity) AS Total_Bucati_Vandute,
+    SUM(TotalRevenue) AS Venit_Total_Generat
+FROM Online_retail_cleaned
+GROUP BY StockCode, Description;
+
+-- Creare View pentru analiza One-Time vs. Repeat Buyers
+CREATE VIEW vw_RetentieClienti AS
+WITH ClientComenzi AS (
+    SELECT 
+        CustomerID,
+        COUNT(DISTINCT InvoiceNo) AS Numar_Comenzi_Total
+    FROM Online_retail_cleaned
+    GROUP BY CustomerID
+)
+SELECT 
+    CASE 
+        WHEN Numar_Comenzi_Total = 1 THEN 'Client cu o singură comandă (One-Time)'
+        ELSE 'Client fidel (Repeat Buyer)'
+    END AS Tip_Client,
+    COUNT(CustomerID) AS Numar_De_Clienti
+FROM ClientComenzi
+GROUP BY 
+    CASE 
+        WHEN Numar_Comenzi_Total = 1 THEN 'Client cu o singură comandă (One-Time)'
+        ELSE 'Client fidel (Repeat Buyer)'
+    END;
+
