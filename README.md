@@ -43,18 +43,3 @@ To ensure lightning-fast dashboard performance and eliminate heavy load in Power
 
 ### 🏆 5. Product Performance (Bar Chart)
 * **Insight:** The product catalog features clear winners. Most notably, **Product ID `23843`** stands out as the ultimate top-performing best-seller, driving significant revenue compared to the rest of the catalog.
-
----
-
-## 📁 Repository Structure
-```text
-├── SQL_Scripts/
-│   ├── vw_TrendLunar.sql
-│   ├── vw_TopProduse.sql
-│   ├── vw_VanzariPeTari.sql
-│   └── vw_RetentieClienti.sql
-├── Python_Scripts/
-│   └── eda_and_cleaning.py
-├── Screenshots/
-│   └── dashboard_preview.png
-└── E-Commerce_Executive_Dashboard.pbix
