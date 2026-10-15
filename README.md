@@ -8,7 +8,7 @@ End-to-end analytics project on one year of transactions from a UK online retail
 ## 📊 Dashboard
 
 ### Page 1: Performance
-![Performance](Proiect_Growth_Analytics/Dashboard_Performance.png)
+![Performance](Proiect_Growth_Analytics/Performance_Dashboard.png)
 
 ### Page 2: Customer Retention
 ![Customer Retention](Proiect_Growth_Analytics/Dashboard_Retention.png)
